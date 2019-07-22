@@ -101,6 +101,11 @@ class DesmosAPI:
                             s.send(bytearray('Content-Type: text/html\r\n', 'utf-8'))
                             s.send(bytearray('Connection: Closed\r\n\r\n', 'utf-8'))
                             s.send(bytearray(self.header, 'utf-8'))
+                            #s.send(bytearray('socket.addEventListener("open", function (e) {socket.send("opened");});\r\n', 'utf-8'))
+                            s.send(bytearray('const socket = new WebSocket("ws://localhost:'+str(self.port)+'");', 'utf-8'))
+                            s.send(bytearray('socket.addEventListener("message", function (e) {calculator.setExpression({id:e.data.substring(0,e.data.indexOf(":")), latex:e.data.substring(e.data.indexOf(":")+1)});});\r\n', 'utf-8'))
+                            s.send(bytearray('socket.addEventListener("error", function(e) {calculator.setExpression({latex:"An error occured, try reloading"});});', 'utf-8'))
+                            s.send(bytearray('socket.addEventListener("close", function(e) {calculator.setExpression({latex:"Lost communication with program, try reloading"});});', 'utf-8'))
                             for equation in self.eqns:
                                 if (equation == 'equation_' + str(self.nextDefaultEqnNumber)):
                                     self.nextDefaultEqnNumber += 1
@@ -116,22 +121,15 @@ class DesmosAPI:
                                 s.send(bytearray('  var observeN_value_' + str(numericObserver) + ';\r\n', 'utf-8'))
                                 s.send(bytearray('  var observerN_' + str(numericObserver) + ' = calculator.HelperExpression({latex: "' + str(self.numericObserverLatexs[numericObserver]) + '"});\r\n', 'utf-8'))
                                 s.send(bytearray('  observerN_' + str(numericObserver) + '.observe("numericValue", function() {', 'utf-8'))
-                                s.send(bytearray('observeN_value_' + str(numericObserver) + '=observerN_' + str(numericObserver) + '.numericValue;\r\n', 'utf-8'))
-                                s.send(bytearray('  var xhr = new XMLHttpRequest();xhr.open("POST","http://localhost:' + str(self.port) + '",true);xhr.send("' + str(numericObserver) + ': "+observeN_value_' + str(numericObserver) + '+"\\n");', 'utf-8'))
+                                s.send(bytearray('observeN_value_' + str(numericObserver) + '=observerN_' + str(numericObserver) + '.numericValue;socket.send("' + str(numericObserver) + ': "+observeN_value_' + str(numericObserver) + '+"\\n");', 'utf-8'))
                                 s.send(bytearray('});\r\n', 'utf-8'))
                             for listObserver in self.listObservers:
                                 s.send(bytearray('\r\n', 'utf-8'))
                                 s.send(bytearray('  var observeL_value_' + str(listObserver) + ';\r\n', 'utf-8'))
                                 s.send(bytearray('  var observerL_' + str(listObserver) + ' = calculator.HelperExpression({latex: "' + str(self.listObserverLatexs[listObserver]) + '"});\r\n', 'utf-8'))
                                 s.send(bytearray('  observerL_' + str(listObserver) + '.observe("listValue", function() {', 'utf-8'))
-                                s.send(bytearray('observeL_value_' + str(listObserver) + '=observerL_' + str(listObserver) + '.listValue;\r\n', 'utf-8'))
-                                s.send(bytearray('  var xhr = new XMLHttpRequest();xhr.open("POST","http://localhost:' + str(self.port) + '",true);xhr.send("' + str(listObserver) + ': "+observeL_value_' + str(listObserver) + '+"\\n");', 'utf-8'))
+                                s.send(bytearray('observeL_value_' + str(listObserver) + '=observerL_' + str(listObserver) + '.listValue;socket.send("' + str(listObserver) + ': "+observeL_value_' + str(listObserver) + '+"\\n");', 'utf-8'))
                                 s.send(bytearray('});\r\n', 'utf-8'))
-                            s.send(bytearray('const socket = new WebSocket("ws://localhost:'+str(self.port)+'");', 'utf-8'))
-                            #s.send(bytearray('socket.addEventListener("open", function (e) {socket.send("opened");});\r\n', 'utf-8'))
-                            s.send(bytearray('socket.addEventListener("message", function (e) {calculator.setExpression({id:e.data.substring(0,e.data.indexOf(":")), latex:e.data.substring(e.data.indexOf(":")+1)});});\r\n', 'utf-8'))
-                            s.send(bytearray('socket.addEventListener("error", function(e) {calculator.setExpression({latex:"An error occured, try reloading"});});', 'utf-8'))
-                            s.send(bytearray('socket.addEventListener("close", function(e) {calculator.setExpression({latex:"Lost communication with program, try reloading"});});', 'utf-8'))
                             s.send(bytearray(self.footer, 'utf-8'))
                             s.send(bytearray('\r\n', 'utf-8'))
                             s.close()
@@ -339,44 +337,25 @@ class DesmosAPI:
         return "equation_" + str(self.nextDefaultEqnNumber-1)
 
     def updateEqn(self, latex, name):
-        for x in self.commsocks:
-            unmasked = os.urandom(1)+os.urandom(1)+os.urandom(1)+os.urandom(1)+bytearray(name+':'+DesmosAPI.makeBackslashesComeInSinglesAndOnlySingles(latex), 'utf-8')
-            masked = [None] * len(unmasked)
-            masked[0] = unmasked[0]
-            masked[1] = unmasked[1]
-            masked[2] = unmasked[2]
-            masked[3] = unmasked[3]
-            # xor(a,xor(a,b))=b
-            for i in range(4,len(unmasked),4):
-                masked[i] = unmasked[i] ^ unmasked[0]
-            for i in range(5,len(unmasked),4):
-                masked[i] = unmasked[i] ^ unmasked[1]
-            for i in range(6,len(unmasked),4):
-                masked[i] = unmasked[i] ^ unmasked[2]
-            for i in range(7,len(unmasked),4):
-                masked[i] = unmasked[i] ^ unmasked[3]
-            if (len(masked)-4<126):
+        data = bytearray(name+':'+DesmosAPI.makeBackslashesComeInSinglesAndOnlySingles(latex), 'utf-8')
+        if (len(data)<126):
+            for x in self.commsocks:
                 x.send(b'\x81')
-                x.send(bytes([(len(masked)-4+128)&0xff]))
-                x.send(bytearray(masked))
-            elif (len(masked)-4<=65536):
+                x.send(bytes([len(data)&0xff]))
+                x.send(bytearray(data))
+        elif (len(data)<=65536):
+            for x in self.commsocks:
                 x.send(b'\x81')
                 x.send(b'\x7e')
-                x.send(bytes([((len(masked)-4+128)>>8)&0xff]))
-                x.send(bytes([(len(masked)-4+128)&0xff]))
-                x.send(bytearray(masked))
-            else: # TODO: maybe check bytes is not longer than 2^64
+                x.send(bytes([(len(data)>>8)&0xff, len(data)&0xff]))
+                x.send(bytearray(data))
+        else:
+            for x in self.commsocks:
                 x.send(b'\x81')
                 x.send(b'\x7f')
-                x.send(bytes([((len(masked)-4+128)>>56)&0xff]))
-                x.send(bytes([((len(masked)-4+128)>>48)&0xff]))
-                x.send(bytes([((len(masked)-4+128)>>40)&0xff]))
-                x.send(bytes([((len(masked)-4+128)>>32)&0xff]))
-                x.send(bytes([((len(masked)-4+128)>>24)&0xff]))
-                x.send(bytes([((len(masked)-4+128)>>16)&0xff]))
-                x.send(bytes([((len(masked)-4+128)>>8)&0xff]))
-                x.send(bytes([(len(masked)-4+128)&0xff]))
-                x.send(bytearray(masked))
+                x.send(bytes([(len(data)>>56)&0xff, (len(data)>>48)&0xff, (len(data)>>40)&0xff, (len(data)>>32)&0xff, (len(data)>>24)&0xff, (len(data)>>16)&0xff, (len(data)>>8)&0xff, len(data)&0xff]))
+                x.send(bytearray(data))
+        return
 
     # LATEX MACRO METHODS
     #
