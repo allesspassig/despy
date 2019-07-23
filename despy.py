@@ -161,7 +161,7 @@ class DesmosAPI:
                                         if (len(data)>13+size):
                                             unmasked = bytearray(data[10:14+size:])
                         elif (data[0] & 9 == 1):
-                            s.send(137+data[1:128:])
+                            s.send(b'\x89'+data[1:128:])
                         elif (data[0] & 8 == 1):
                             self.commsocks.remove(s)
                             s.close()
@@ -193,6 +193,7 @@ class DesmosAPI:
                                 for x in vals:
                                     try:
                                         dat = float(x.strip())
+                                        arr.append(dat)
                                     except ValueError:
                                         pass
                                 listObserver(arr)
