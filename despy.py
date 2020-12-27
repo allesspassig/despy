@@ -41,7 +41,7 @@ class DesmosAPI:
         self.ss = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.ss.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
         try:
-            self.ss.bind(('127.0.0.1', self.port))
+            self.ss.bind((socket.gethostbyname(socket.gethostname()), self.port))
         except socket.error as err:
             print('fail', err)
             exit()
@@ -104,7 +104,7 @@ class DesmosAPI:
                                 s.send(bytearray('Connection: Closed\r\n\r\n', 'utf-8'))
                                 s.send(bytearray(self.header, 'utf-8'))
                                 #s.send(bytearray('socket.addEventListener("open", function (e) {socket.send("opened");});\r\n', 'utf-8'))
-                                s.send(bytearray('const socket = new WebSocket("ws://localhost:'+str(self.port)+'");', 'utf-8'))
+                                s.send(bytearray('const socket = new WebSocket("ws://'+socket.gethostbyname(socket.gethostname())+':'+str(self.port)+'");', 'utf-8'))
                                 s.send(bytearray('socket.addEventListener("message", function (e) {calculator.setExpression({id:e.data.substring(0,e.data.indexOf(":")), latex:e.data.substring(e.data.indexOf(":")+1,e.data.indexOf(":",e.data.indexOf(":")+1)), color:e.data.substring(e.data.indexOf(":",e.data.indexOf(":")+1)+1)});});\r\n', 'utf-8'))#THIS IS THE ENTIRETY OF THE CLIENT RESPONSE CODE, updateEqn CALLS END UP HERE
                                 s.send(bytearray('socket.addEventListener("error", function(e) {calculator.setExpression({latex:"An error occured, try reloading"});});', 'utf-8'))
                                 s.send(bytearray('socket.addEventListener("close", function(e) {calculator.setExpression({latex:"Lost communication with program, try reloading"});});', 'utf-8'))
