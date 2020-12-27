@@ -4,10 +4,10 @@ import hashlib
 import socket
 import base64
 import time
-import os
+import math
 
 class DesmosAPI:
-    lastport = 1000
+    lastport = 7002
     verbose = False
 
     def __init__(self, title='Desmos Controls', color='#1AAD57', equations=[]):
@@ -39,6 +39,7 @@ class DesmosAPI:
         self.maxclients = 10
 
         self.ss = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.ss.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
         try:
             self.ss.bind(('127.0.0.1', self.port))
         except socket.error as err:
@@ -47,158 +48,170 @@ class DesmosAPI:
         self.ss.listen()
         def go():
             while (True):
-                if (DesmosAPI.verbose):
-                    print('Waiting for socket')
-                s, address = self.ss.accept()
-                if (DesmosAPI.verbose):
-                    print('Accepted ', s)
-                data = s.recv(16384).decode('utf-8')
-                lines = data.splitlines()
-                entries = {}
-                for x in lines:
-                    try:
-                        idx = x.index(':')
-                        entries[x[0:idx]] = x[idx+2::]
-                    except ValueError:
-                        entries[x] = x
-                if (len(lines)>0 and len(lines[0])>0):
+                try:
                     if (DesmosAPI.verbose):
-                        print(lines[0])
-                        maxlen = max([len(x) for x in entries])
-                        for string in list(entries)[1::]:
-                            print(string, ' '*(maxlen-len(string)), entries[string])
-                    if ('POST' in lines[0].upper()):
-                        payload = lines[len(lines)-1]
-                        print('why are you sending me post requests? ', payload)
-                        s.send(bytearray('HTTP/1.1 200 OK\r\n', 'utf-8'))
-                        s.send(bytearray('Connection: Closed\r\n\r\n', 'utf-8'))
-                        s.close()
-                    if ('GET' in lines[0].upper() and len(entries)>0):
-                        if ('Upgrade' in entries and entries['Upgrade']=='websocket'):
-                            if ('Sec-WebSocket-Key' in entries):
-                                s.send(bytearray('HTTP/1.1 101 Switching Protocols\r\n', 'utf-8'))
-                                s.send(bytearray('Connection: Upgrade\r\n', 'utf-8'))
-                                s.send(bytearray('Upgrade: websocket\r\n', 'utf-8'))
-                                key = entries['Sec-WebSocket-Key']
-                                s.send(bytearray('Sec-WebSocket-Accept: '+base64.b64encode(hashlib.sha1((key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').encode('utf-8')).digest()).decode('utf-8')+'\r\n\r\n', 'utf-8'))
-                                if (len(self.commsocks) < self.maxclients):
-                                    self.commsocks.append(s)
-                                    s.settimeout(.1)
-                                    s.setblocking(False)
-                                else:
-                                    s.close()
-                        elif ('favicon' in lines[0]):
+                        print('Waiting for socket')
+                    s, address = self.ss.accept()
+                    if (DesmosAPI.verbose):
+                        print('Accepted ', s)
+                    data = s.recv(16384).decode('utf-8')
+                    lines = data.splitlines()
+                    entries = {}
+                    for x in lines:
+                        try:
+                            idx = x.index(':')
+                            entries[x[0:idx]] = x[idx+2::]
+                        except ValueError:
+                            entries[x] = x
+                    if (len(lines)>0 and len(lines[0])>0):
+                        if (DesmosAPI.verbose):
+                            print(lines[0])
+                            maxlen = max([len(x) for x in entries])
+                            for string in list(entries)[1::]:
+                                print(string, ' '*(maxlen-len(string)), entries[string])
+                        if ('POST' in lines[0].upper()):
+                            payload = lines[len(lines)-1]
+                            print('why are you sending me post requests? ', payload)
                             s.send(bytearray('HTTP/1.1 200 OK\r\n', 'utf-8'))
-                            s.send(bytearray('Content-Type: image/x-icon\r\n', 'utf-8'))
                             s.send(bytearray('Connection: Closed\r\n\r\n', 'utf-8'))
-                            fp = open('C:/Users/adamcm/Pictures/sdsslogo.png', 'rb')
-                            s.send(fp.read())
-                            fp.close()
-                            s.send(bytearray('\r\n\r\n', 'utf-8'))
                             s.close()
-                        else:
-                            s.send(bytearray('HTTP/1.1 200 OK\r\n', 'utf-8'))
-                            s.send(bytearray('Content-Type: text/html\r\n', 'utf-8'))
-                            s.send(bytearray('Connection: Closed\r\n\r\n', 'utf-8'))
-                            s.send(bytearray(self.header, 'utf-8'))
-                            #s.send(bytearray('socket.addEventListener("open", function (e) {socket.send("opened");});\r\n', 'utf-8'))
-                            s.send(bytearray('const socket = new WebSocket("ws://localhost:'+str(self.port)+'");', 'utf-8'))
-                            s.send(bytearray('socket.addEventListener("message", function (e) {calculator.setExpression({id:e.data.substring(0,e.data.indexOf(":")), latex:e.data.substring(e.data.indexOf(":")+1)});});\r\n', 'utf-8'))
-                            s.send(bytearray('socket.addEventListener("error", function(e) {calculator.setExpression({latex:"An error occured, try reloading"});});', 'utf-8'))
-                            s.send(bytearray('socket.addEventListener("close", function(e) {calculator.setExpression({latex:"Lost communication with program, try reloading"});});', 'utf-8'))
-                            for equation in self.eqns:
-                                if (equation == 'equation_' + str(self.nextDefaultEqnNumber)):
-                                    self.nextDefaultEqnNumber += 1
+                        if ('GET' in lines[0].upper() and len(entries)>0):
+                            if ('Upgrade' in entries and entries['Upgrade']=='websocket'):
+                                if ('Sec-WebSocket-Key' in entries):
+                                    s.send(bytearray('HTTP/1.1 101 Switching Protocols\r\n', 'utf-8'))
+                                    s.send(bytearray('Connection: Upgrade\r\n', 'utf-8'))
+                                    s.send(bytearray('Upgrade: websocket\r\n', 'utf-8'))
+                                    key = entries['Sec-WebSocket-Key']
+                                    s.send(bytearray('Sec-WebSocket-Accept: '+base64.b64encode(hashlib.sha1((key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').encode('utf-8')).digest()).decode('utf-8')+'\r\n\r\n', 'utf-8'))
+                                    if (len(self.commsocks) < self.maxclients):
+                                        self.commsocks.append(s)
+                                        s.settimeout(.1)
+                                        s.setblocking(False)
+                                    else:
+                                        s.close()
+                            elif ('favicon' in lines[0]):
+                                s.send(bytearray('HTTP/1.1 200 OK\r\n', 'utf-8'))
+                                s.send(bytearray('Content-Type: image/x-icon\r\n', 'utf-8'))
+                                s.send(bytearray('Connection: Closed\r\n\r\n', 'utf-8'))
+                                fp = open('C:/Users/adamcm/Pictures/sdsslogo.png', 'rb')
+                                s.send(fp.read())
+                                fp.close()
+                                s.send(bytearray('\r\n\r\n', 'utf-8'))
+                                s.close()
+                            else:
+                                s.send(bytearray('HTTP/1.1 200 OK\r\n', 'utf-8'))
+                                s.send(bytearray('Content-Type: text/html\r\n', 'utf-8'))
+                                s.send(bytearray('Connection: Closed\r\n\r\n', 'utf-8'))
+                                s.send(bytearray(self.header, 'utf-8'))
+                                #s.send(bytearray('socket.addEventListener("open", function (e) {socket.send("opened");});\r\n', 'utf-8'))
+                                s.send(bytearray('const socket = new WebSocket("ws://localhost:'+str(self.port)+'");', 'utf-8'))
+                                s.send(bytearray('socket.addEventListener("message", function (e) {calculator.setExpression({id:e.data.substring(0,e.data.indexOf(":")), latex:e.data.substring(e.data.indexOf(":")+1,e.data.indexOf(":",e.data.indexOf(":")+1)), color:e.data.substring(e.data.indexOf(":",e.data.indexOf(":")+1)+1)});});\r\n', 'utf-8'))#THIS IS THE ENTIRETY OF THE CLIENT RESPONSE CODE, updateEqn CALLS END UP HERE
+                                s.send(bytearray('socket.addEventListener("error", function(e) {calculator.setExpression({latex:"An error occured, try reloading"});});', 'utf-8'))
+                                s.send(bytearray('socket.addEventListener("close", function(e) {calculator.setExpression({latex:"Lost communication with program, try reloading"});});', 'utf-8'))
+                                for equation in self.eqns:
+                                    if (equation == 'equation_' + str(self.nextDefaultEqnNumber)):
+                                        self.nextDefaultEqnNumber += 1
+                                    s.send(bytearray('\r\n', 'utf-8'))
+                                    eqnInnards = '{id:"' + equation + '", latex:"' + self.eqns[equation] + '"'
+                                    if (equation in self.eqnColors):
+                                        eqnInnards += ', color:"' + self.eqnColors[equation] + '"'
+                                    if (equation in self.eqnMinMaxStepBounds):
+                                        eqnInnards += ', sliderBounds:{min:"' + str(self.eqnMinMaxStepBounds[equation][0]) + '", max:"' + str(self.eqnMinMaxStepBounds[equation][1]) + '", step:"' + str(self.eqnMinMaxStepBounds[equation][2]) + '"}'
+                                    s.send(bytearray('  calculator.setExpression(' + str(eqnInnards) + '});\r\n', 'utf-8'))
+                                for numericObserver in self.numericObservers:
+                                    s.send(bytearray('\r\n', 'utf-8'))
+                                    s.send(bytearray('  var observeN_value_' + str(numericObserver) + ';\r\n', 'utf-8'))
+                                    s.send(bytearray('  var observerN_' + str(numericObserver) + ' = calculator.HelperExpression({latex: "' + str(self.numericObserverLatexs[numericObserver]) + '"});\r\n', 'utf-8'))
+                                    s.send(bytearray('  observerN_' + str(numericObserver) + '.observe("numericValue", function() {', 'utf-8'))
+                                    s.send(bytearray('observeN_value_' + str(numericObserver) + '=observerN_' + str(numericObserver) + '.numericValue;socket.send("' + str(numericObserver) + ': "+observeN_value_' + str(numericObserver) + '+"\\n");', 'utf-8'))
+                                    s.send(bytearray('});\r\n', 'utf-8'))
+                                for listObserver in self.listObservers:
+                                    s.send(bytearray('\r\n', 'utf-8'))
+                                    s.send(bytearray('  var observeL_value_' + str(listObserver) + ';\r\n', 'utf-8'))
+                                    s.send(bytearray('  var observerL_' + str(listObserver) + ' = calculator.HelperExpression({latex: "' + str(self.listObserverLatexs[listObserver]) + '"});\r\n', 'utf-8'))
+                                    s.send(bytearray('  observerL_' + str(listObserver) + '.observe("listValue", function() {', 'utf-8'))
+                                    s.send(bytearray('observeL_value_' + str(listObserver) + '=observerL_' + str(listObserver) + '.listValue;socket.send("' + str(listObserver) + ': "+observeL_value_' + str(listObserver) + '+"\\n");', 'utf-8'))
+                                    s.send(bytearray('});\r\n', 'utf-8'))
+                                s.send(bytearray(self.footer, 'utf-8'))
                                 s.send(bytearray('\r\n', 'utf-8'))
-                                eqnInnards = '{id:"' + equation + '", latex:"' + self.eqns[equation] + '"'
-                                if (equation in self.eqnColors):
-                                    eqnInnards += ', color:"' + self.eqnColors[equation] + '"'
-                                if (equation in self.eqnMinMaxStepBounds):
-                                    eqnInnards += ', sliderBounds:{min:"' + str(self.eqnMinMaxStepBounds[equation][0]) + '", max:"' + str(self.eqnMinMaxStepBounds[equation][1]) + '", step:"' + str(self.eqnMinMaxStepBounds[equation][2]) + '"}'
-                                s.send(bytearray('  calculator.setExpression(' + str(eqnInnards) + '});\r\n', 'utf-8'))
-                            for numericObserver in self.numericObservers:
-                                s.send(bytearray('\r\n', 'utf-8'))
-                                s.send(bytearray('  var observeN_value_' + str(numericObserver) + ';\r\n', 'utf-8'))
-                                s.send(bytearray('  var observerN_' + str(numericObserver) + ' = calculator.HelperExpression({latex: "' + str(self.numericObserverLatexs[numericObserver]) + '"});\r\n', 'utf-8'))
-                                s.send(bytearray('  observerN_' + str(numericObserver) + '.observe("numericValue", function() {', 'utf-8'))
-                                s.send(bytearray('observeN_value_' + str(numericObserver) + '=observerN_' + str(numericObserver) + '.numericValue;socket.send("' + str(numericObserver) + ': "+observeN_value_' + str(numericObserver) + '+"\\n");', 'utf-8'))
-                                s.send(bytearray('});\r\n', 'utf-8'))
-                            for listObserver in self.listObservers:
-                                s.send(bytearray('\r\n', 'utf-8'))
-                                s.send(bytearray('  var observeL_value_' + str(listObserver) + ';\r\n', 'utf-8'))
-                                s.send(bytearray('  var observerL_' + str(listObserver) + ' = calculator.HelperExpression({latex: "' + str(self.listObserverLatexs[listObserver]) + '"});\r\n', 'utf-8'))
-                                s.send(bytearray('  observerL_' + str(listObserver) + '.observe("listValue", function() {', 'utf-8'))
-                                s.send(bytearray('observeL_value_' + str(listObserver) + '=observerL_' + str(listObserver) + '.listValue;socket.send("' + str(listObserver) + ': "+observeL_value_' + str(listObserver) + '+"\\n");', 'utf-8'))
-                                s.send(bytearray('});\r\n', 'utf-8'))
-                            s.send(bytearray(self.footer, 'utf-8'))
-                            s.send(bytearray('\r\n', 'utf-8'))
-                            s.close()
+                                s.close()
+                except KeyboardInterrupt:
+                    print('klilingser...')
+                    self.ss.shutdown(socket.SHUT_RDWR)
+                    self.ss.close()
+                    break
         def handleClients():
             while (True): #TODO: ping sockets and kill unresponsive ones
-                if (len(self.commsocks)<1):
-                    time.sleep(.1)
-                for s in self.commsocks:
-                    try:
-                        data = s.recv(16384)
-                    except socket.error:
-                        continue
-                    unmasked = None
-                    if (len(data)>1):
-                        if (data[0]==129):
-                            if (data[1]-128>=0):
-                                if (data[1]-128<126):
-                                    size = data[1]-128
-                                    if (len(data)>5+size):
-                                        unmasked = bytearray(data[2:6+size:])
-                                elif (data[1]-128==126):
-                                    if (len(data)>3):
-                                        size = (data[2] << 8) | data[3]
-                                        if (len(data)>7+size):
-                                            unmasked = bytearray(data[4:8+size:])
-                                else:
-                                    if (len(data)>9):
-                                        size = (data[2]<<56)|(data[3]<<48)|(data[4]<<40)|(data[5]<<32)|(data[6]<<24)|(data[7]<<16)|(data[8]<<8)|data[9]
-                                        if (len(data)>13+size):
-                                            unmasked = bytearray(data[10:14+size:])
-                        elif (data[0] & 9 == 1):
-                            s.send(b'\x89'+data[1:128:])
-                        elif (data[0] & 8 == 1):
-                            self.commsocks.remove(s)
-                            s.close()
-                    if (unmasked is not None):
-                        size += 4
-                        for i in range(4, size, 4):
-                            unmasked[i] = unmasked[i] ^ unmasked[0]
-                        for i in range(5, size, 4):
-                            unmasked[i] = unmasked[i] ^ unmasked[1]
-                        for i in range(6, size, 4):
-                            unmasked[i] = unmasked[i] ^ unmasked[2]
-                        for i in range(7, size, 4):
-                            unmasked[i] = unmasked[i] ^ unmasked[3]
-                        payload = unmasked[4::].decode('utf-8')
+                try:
+                    if (len(self.commsocks)<1):
+                        time.sleep(.1)
+                    for s in self.commsocks:
                         try:
-                            idx = payload.index(':')
-                            sub = payload[0:idx]
-                            if (sub in self.numericObservers):
-                                numericObserver = self.numericObservers[sub]
-                                try:
-                                    dat = float(payload[idx+1::])
-                                    numericObserver(dat)
-                                except ValueError:
-                                        pass
-                            if (sub in self.listObservers):
-                                listObserver = self.listObservers[sub]
-                                vals = payload[idx+1::].split(',')
-                                arr = []
-                                for x in vals:
+                            data = s.recv(16384)
+                        except socket.error:
+                            continue
+                        unmasked = None
+                        if (len(data)>1):
+                            if (data[0]==129):
+                                if (data[1]-128>=0):
+                                    if (data[1]-128<126):
+                                        size = data[1]-128
+                                        if (len(data)>5+size):
+                                            unmasked = bytearray(data[2:6+size:])
+                                    elif (data[1]-128==126):
+                                        if (len(data)>3):
+                                            size = (data[2] << 8) | data[3]
+                                            if (len(data)>7+size):
+                                                unmasked = bytearray(data[4:8+size:])
+                                    else:
+                                        if (len(data)>9):
+                                            size = (data[2]<<56)|(data[3]<<48)|(data[4]<<40)|(data[5]<<32)|(data[6]<<24)|(data[7]<<16)|(data[8]<<8)|data[9]
+                                            if (len(data)>13+size):
+                                                unmasked = bytearray(data[10:14+size:])
+                            elif (data[0] & 9 == 1):
+                                s.send(b'\x89'+data[1:128:])
+                            elif (data[0] & 8 == 1):
+                                self.commsocks.remove(s)
+                                s.close()
+                        if (unmasked is not None):
+                            size += 4
+                            for i in range(4, size, 4):
+                                unmasked[i] = unmasked[i] ^ unmasked[0]
+                            for i in range(5, size, 4):
+                                unmasked[i] = unmasked[i] ^ unmasked[1]
+                            for i in range(6, size, 4):
+                                unmasked[i] = unmasked[i] ^ unmasked[2]
+                            for i in range(7, size, 4):
+                                unmasked[i] = unmasked[i] ^ unmasked[3]
+                            payload = unmasked[4::].decode('utf-8')
+                            try:
+                                idx = payload.index(':')
+                                sub = payload[0:idx]
+                                if (sub in self.numericObservers):
+                                    numericObserver = self.numericObservers[sub]
                                     try:
-                                        dat = float(x.strip())
-                                        arr.append(dat)
+                                        dat = float(payload[idx+1::])
+                                        numericObserver(dat)
                                     except ValueError:
-                                        pass
-                                listObserver(arr)
-                        except ValueError:
-                            pass
+                                            pass
+                                if (sub in self.listObservers):
+                                    listObserver = self.listObservers[sub]
+                                    vals = payload[idx+1::].split(',')
+                                    arr = []
+                                    for x in vals:
+                                        try:
+                                            dat = float(x.strip())
+                                            arr.append(dat)
+                                        except ValueError:
+                                            pass
+                                    listObserver(arr)
+                            except ValueError:
+                                pass
+                except KeyboardInterrupt:
+                    print('killing...')
+                    self.ss.shutdown(socket.SHUT_RDWR)
+                    self.ss.close()
+                    break
         serverThread = threading.Thread(target = go)
         clientsThread = threading.Thread(target = handleClients)
         serverThread.start()
@@ -337,8 +350,10 @@ class DesmosAPI:
         self.nextDefaultEqnNumber += 1
         return "equation_" + str(self.nextDefaultEqnNumber-1)
 
-    def updateEqn(self, latex, name):
-        data = bytearray(name+':'+DesmosAPI.makeBackslashesComeInSinglesAndOnlySingles(latex), 'utf-8')
+    def updateEqn(self, latex, name, color=None):
+        if (color is not None):
+            self.eqnColors[name] = color
+        data = bytearray(name+':'+DesmosAPI.makeBackslashesComeInSinglesAndOnlySingles(latex)+':'+(self.eqnColors[name]if name in self.eqnColors else''), 'utf-8')
         if (len(data)<126):
             for x in self.commsocks:
                 x.send(b'\x81')
