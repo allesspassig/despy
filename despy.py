@@ -41,7 +41,7 @@ class DesmosAPI:
         self.ss = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.ss.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
         try:
-            self.ss.bind((socket.gethostbyname(socket.gethostname()), self.port))
+            self.ss.bind(("127.0.0.1", self.port))
         except socket.error as err:
             print('fail', err)
             exit()
@@ -93,7 +93,7 @@ class DesmosAPI:
                                 s.send(bytearray('HTTP/1.1 200 OK\r\n', 'utf-8'))
                                 s.send(bytearray('Content-Type: image/x-icon\r\n', 'utf-8'))
                                 s.send(bytearray('Connection: Closed\r\n\r\n', 'utf-8'))
-                                fp = open('C:/Users/adamcm/Pictures/sdsslogo.png', 'rb')
+                                fp = open('favicon.png', 'rb')
                                 s.send(fp.read())
                                 fp.close()
                                 s.send(bytearray('\r\n\r\n', 'utf-8'))
